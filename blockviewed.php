@@ -51,7 +51,7 @@ class BlockViewed extends Module
 
         parent::__construct();
 
-        $this->displayName = $this->l('Viewed products block');
+        $this->displayName = $this->l('Block Viewed Products');
         $this->description = $this->l('Adds a block displaying recently viewed products.');
     }
 
