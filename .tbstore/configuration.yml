@@ -6,6 +6,7 @@ tags:
   - viewed products
   - viewed
   - recently viewed
+  - blockviewed
 description_short: The block viewed module adds a block of recently viewed products to your site.
 description: description.md
 images:
