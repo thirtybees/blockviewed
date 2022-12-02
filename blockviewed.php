@@ -38,6 +38,7 @@ class BlockViewed extends Module
     /**
      * BlockViewed constructor.
      *
+     * @throws PrestaShopException
      * @since 1.0.0
      */
     public function __construct()
@@ -60,6 +61,9 @@ class BlockViewed extends Module
     /**
      * @return bool
      *
+     * @throws HTMLPurifier_Exception
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
      * @since 1.0.0
      */
     public function install()
@@ -79,6 +83,12 @@ class BlockViewed extends Module
 
     /**
      * Called in administration -> module -> configure
+     *
+     * @return string
+     * @throws HTMLPurifier_Exception
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
+     * @throws SmartyException
      */
     public function getContent()
     {
@@ -100,8 +110,11 @@ class BlockViewed extends Module
     /**
      * @param array $params
      *
-     * @return bool|string
+     * @return string|void
      *
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
+     * @throws SmartyException
      * @since 1.0.0
      */
     public function hookRightColumn($params)
@@ -176,8 +189,11 @@ class BlockViewed extends Module
     /**
      * @param array $params
      *
-     * @return bool|string
+     * @return string
      *
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
+     * @throws SmartyException
      * @since 1.0.0
      */
     public function hookLeftColumn($params)
@@ -188,8 +204,11 @@ class BlockViewed extends Module
     /**
      * @param array $params
      *
-     * @return bool|string
+     * @return string
      *
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
+     * @throws SmartyException
      * @since 1.0.0
      */
     public function hookFooter($params)
@@ -200,6 +219,7 @@ class BlockViewed extends Module
     /**
      * @param $params
      *
+     * @throws PrestaShopException
      * @since 1.0.0
      */
     public function hookHeader($params)
@@ -222,6 +242,9 @@ class BlockViewed extends Module
     /**
      * @return string
      *
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
+     * @throws SmartyException
      * @since 1.0.0
      */
     public function renderForm()
@@ -270,6 +293,7 @@ class BlockViewed extends Module
     /**
      * @return array
      *
+     * @throws PrestaShopException
      * @since 1.0.0
      */
     public function getConfigFieldsValues()
