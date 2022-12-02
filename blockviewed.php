@@ -183,7 +183,6 @@ class BlockViewed extends Module
 
             return $this->display(__FILE__, 'blockviewed.tpl');
         }
-        return;
     }
 
     /**
@@ -236,7 +235,7 @@ class BlockViewed extends Module
                     $params['cookie']->viewed = (int)$id_product;
             }
         }
-        $this->context->controller->addCSS($this->_path.'css/blockviewed.css', 'all');
+        $this->context->controller->addCSS($this->_path.'css/blockviewed.css');
     }
 
     /**
