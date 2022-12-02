@@ -110,7 +110,7 @@ class BlockViewed extends Module
     /**
      * @param array $params
      *
-     * @return string|void
+     * @return string|null
      *
      * @throws PrestaShopDatabaseException
      * @throws PrestaShopException
@@ -119,70 +119,64 @@ class BlockViewed extends Module
      */
     public function hookRightColumn($params)
     {
-        $productsViewed = (isset($params['cookie']->viewed) && !empty($params['cookie']->viewed)) ? array_slice(array_reverse(explode(',', $params['cookie']->viewed)), 0, Configuration::get('PRODUCTS_VIEWED_NBR')) : array();
+        $context = Context::getContext();
+        $cookie = $context->cookie;
+        $languageId = (int)$context->language->id;
+        $productsViewed = $this->getViewedProducts($cookie);
 
-        if (count($productsViewed)) {
-            $defaultCover = Language::getIsoById($params['cookie']->id_lang).'-default';
+        if ($productsViewed) {
+            $productIds = implode(',', $productsViewed);
 
-            $productIds = implode(',', array_map('intval', $productsViewed));
-            $productsImages = Db::getInstance(_PS_USE_SQL_SLAVE_)->executeS('
+            $productsData = Db::getInstance(_PS_USE_SQL_SLAVE_)->executeS('
                         SELECT MAX(image_shop.id_image) id_image, p.id_product, il.legend, product_shop.active, pl.name, pl.description_short, pl.link_rewrite, cl.link_rewrite AS category_rewrite
                         FROM '._DB_PREFIX_.'product p
                         '.Shop::addSqlAssociation('product', 'p').'
                         LEFT JOIN '._DB_PREFIX_.'product_lang pl ON (pl.id_product = p.id_product'.Shop::addSqlRestrictionOnLang('pl').')
                         LEFT JOIN '._DB_PREFIX_.'image i ON (i.id_product = p.id_product)'.
                         Shop::addSqlAssociation('image', 'i', false, 'image_shop.cover=1').'
-                        LEFT JOIN '._DB_PREFIX_.'image_lang il ON (il.id_image = image_shop.id_image AND il.id_lang = '.(int)($params['cookie']->id_lang).')
+                        LEFT JOIN '._DB_PREFIX_.'image_lang il ON (il.id_image = image_shop.id_image AND il.id_lang = '.$languageId.')
                         LEFT JOIN '._DB_PREFIX_.'category_lang cl ON (cl.id_category = product_shop.id_category_default'.Shop::addSqlRestrictionOnLang('cl').')
                         WHERE p.id_product IN ('.$productIds.')
-                        AND pl.id_lang = '.(int)($params['cookie']->id_lang).'
-                        AND cl.id_lang = '.(int)($params['cookie']->id_lang).'
+                        AND pl.id_lang = '.$languageId.'
+                        AND cl.id_lang = '.$languageId.'
+                        AND product_shop.active
                         GROUP BY product_shop.id_product'
             );
 
-            $productsImagesArray = array();
-            foreach ($productsImages as $pi)
-                $productsImagesArray[$pi['id_product']] = $pi;
+            $productsImagesArray = [];
+            foreach ($productsData as $row) {
+                $productsImagesArray[(int)$row['id_product']] = $row;
+            }
 
-            $productsViewedObj = array();
+            $productsViewedObj = [];
             foreach ($productsViewed as $productViewed)
             {
-                $obj = (object)'Product';
-                if (!isset($productsImagesArray[$productViewed]) || (!$obj->active = $productsImagesArray[$productViewed]['active']))
-                    continue;
-                else
-                {
-                    $obj->id = (int)($productsImagesArray[$productViewed]['id_product']);
-                    $obj->id_image = (int)$productsImagesArray[$productViewed]['id_image'];
-                    $obj->cover = (int)($productsImagesArray[$productViewed]['id_product']).'-'.(int)($productsImagesArray[$productViewed]['id_image']);
-                    $obj->legend = $productsImagesArray[$productViewed]['legend'];
-                    $obj->name = $productsImagesArray[$productViewed]['name'];
-                    $obj->description_short = $productsImagesArray[$productViewed]['description_short'];
-                    $obj->link_rewrite = $productsImagesArray[$productViewed]['link_rewrite'];
-                    $obj->category_rewrite = $productsImagesArray[$productViewed]['category_rewrite'];
-                    // $obj is not a real product so it cannot be used as argument for getProductLink()
+                if (isset($productsImagesArray[$productViewed])) {
+                    $row = $productsImagesArray[$productViewed];
+                    $obj = new stdClass();
+                    $obj->id = (int)$row['id_product'];
+                    $obj->active = true;
+                    $obj->id_image = (int)$row['id_image'];
+                    $obj->cover = (int)$row['id_image'];
+                    $obj->legend = $row['legend'];
+                    $obj->name = $row['name'];
+                    $obj->description_short = $row['description_short'];
+                    $obj->link_rewrite = $row['link_rewrite'];
+                    $obj->category_rewrite = $row['category_rewrite'];
                     $obj->product_link = $this->context->link->getProductLink($obj->id, $obj->link_rewrite, $obj->category_rewrite);
-
-                    if (!isset($obj->cover) || !$productsImagesArray[$productViewed]['id_image']) {
-                        $obj->cover = $defaultCover;
-                        $obj->legend = '';
-                    }
                     $productsViewedObj[] = $obj;
                 }
             }
 
-            if (!count($productsViewedObj))
-                return;
-
-            $this->smarty->assign(
-                [
+            if ($productsViewedObj) {
+                $this->smarty->assign([
                     'productsViewedObj' => $productsViewedObj,
                     'mediumSize' => Image::getSize('medium'),
-                ]
-            );
-
-            return $this->display(__FILE__, 'blockviewed.tpl');
+                ]);
+                return $this->display(__FILE__, 'blockviewed.tpl');
+            }
         }
+        return null;
     }
 
     /**
@@ -223,18 +217,19 @@ class BlockViewed extends Module
      */
     public function hookHeader($params)
     {
-        $id_product = (int)Tools::getValue('id_product');
-        $productsViewed = (isset($params['cookie']->viewed) && !empty($params['cookie']->viewed)) ? array_slice(array_reverse(explode(',', $params['cookie']->viewed)), 0, Configuration::get('PRODUCTS_VIEWED_NBR')) : array();
-
-        if ($id_product && !in_array($id_product, $productsViewed)) {
-            $product = new Product((int)$id_product);
-            if ($product->checkAccess((int)$this->context->customer->id)) {
-                if (isset($params['cookie']->viewed) && !empty($params['cookie']->viewed))
-                    $params['cookie']->viewed .= ','.(int)$id_product;
-                else
-                    $params['cookie']->viewed = (int)$id_product;
+        $context = Context::getContext();
+        if ($context->controller->php_self === 'product') {
+            $productId = (int)Tools::getValue('id_product');
+            $product = new Product((int)$productId);
+            if (Validate::isLoadedObject($product) && $product->checkAccess((int)$this->context->customer->id)) {
+                // add product to list of viewed products
+                $cookie = $context->cookie;
+                $productsViewed = $this->getViewedProducts($cookie);
+                array_unshift($productsViewed, $productId);
+                $this->saveViewedProducts($cookie, $productsViewed);
             }
         }
+
         $this->context->controller->addCSS($this->_path.'css/blockviewed.css');
     }
 
@@ -300,6 +295,53 @@ class BlockViewed extends Module
         return [
             'PRODUCTS_VIEWED_NBR' => (int) Tools::getValue('PRODUCTS_VIEWED_NBR', Configuration::get('PRODUCTS_VIEWED_NBR')),
         ];
+    }
+
+    /**
+     * @param Cookie $cookie
+     * @return int[]
+     * @throws PrestaShopException
+     */
+    protected function getViewedProducts(Cookie $cookie)
+    {
+        if (isset($cookie->viewed)) {
+            $limit = max(0, (int)Configuration::get('PRODUCTS_VIEWED_NBR'));
+            $viewed = explode(',', $cookie->viewed);
+            if ($viewed) {
+                $viewed = array_unique(array_map('intval', $viewed), SORT_NUMERIC);
+                if (count($viewed) > $limit) {
+                    return $this->saveViewedProducts($cookie, $viewed);
+                }
+                return $viewed;
+            }
+        }
+        return [];
+    }
+
+    /**
+     * @param Cookie $cookie
+     * @param int[] $viewed
+     * @throws PrestaShopException
+     * @return int[]
+     */
+    protected function saveViewedProducts(Cookie $cookie, array $viewed)
+    {
+        $viewed = array_unique(array_map('intval', $viewed), SORT_NUMERIC);
+        $limit = max(0, (int)Configuration::get('PRODUCTS_VIEWED_NBR'));
+        if (count($viewed) > $limit) {
+            $viewed = array_slice($viewed, 0, $limit);
+        }
+        if ($viewed) {
+            $value = implode(',', $viewed);
+            if (! isset($cookie->viewed) || $cookie->viewed != $value) {
+                $cookie->viewed = $value;
+            }
+        } else {
+            if (isset($cookie->viewed)) {
+                unset($cookie->viewed);
+            }
+        }
+        return $viewed;
     }
 
 }
